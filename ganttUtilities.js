@@ -139,7 +139,7 @@ $.splittify = {
     var fbw = w *perc/ 100 - splitterBar.width();
     var realW=firstBox.get(0).scrollWidth;
     fbw=fbw>realW?realW:fbw;
-    firstBox.width(fbw).css({left:0});
+    firstBox.width(fbw).css({left:'2px'});
     splitterBar.css({left:firstBox.width()});
     secondBox.width(w -fbw-splitterBar.width() ).css({left:firstBox.width() + splitterBar.width()});
 
