@@ -421,9 +421,9 @@ Ganttalendar.prototype.drawTask = function (task) {
         var task = self.master.getTask($(this).attr("taskId"));
         task.rowElement.click();
       }).dragExtedSVG($(self.svg.root()), {
-        canResize:  this.master.canWrite && task.canWrite,
+        canResize:  this.master.canWrite && task.canWrite && !task.isParent(),
         // canDrag:    !task.depends && this.master.canWrite && task.canWrite,
-        canDrag:    this.master.canWrite && task.canWrite,
+        canDrag:    this.master.canWrite && task.canWrite && !task.isParent(),
         startDrag:  function (e) {
           $(".ganttSVGBox .focused").removeClass("focused");
         },
