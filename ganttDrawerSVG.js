@@ -320,8 +320,8 @@ Ganttalendar.prototype.create = function (zoom, originalStartmillis, originalEnd
         var gridGroup = svg.group("gridGroup");
 
         //creates rows grid
-        for (var i = 40; i <= height; i += self.rowHeight)
-          svg.line(gridGroup, 0, i, "100%", i, {class:"ganttLinesSVG"});
+        // for (var i = 40; i <= height; i += self.rowHeight)
+        //   svg.line(gridGroup, 0, i, "100%", i, {class:"ganttLinesSVG"});
 
         //creates links group
         self.linksGroup = svg.group("linksGroup");
