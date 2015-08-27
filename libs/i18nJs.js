@@ -76,7 +76,7 @@
   }
 
   //override date format i18n
-  
+
   Date.monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   // Month abbreviations. Change this for local month names
   Date.monthAbbreviations = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -121,8 +121,13 @@
     return  (day == 5 && friIsHoly) || (day == 6 && satIsHoly) || (day == 0 && sunIsHoly) || holidays.indexOf(ymd) > -1 || holidays.indexOf(md) > -1;
   }
 
+  function isWeekend(date) {
+    var day = date.getDay();
+    return day == 6 || day == 0;
+  }
 
-  
+
+
   var i18n = {
     FORM_IS_CHANGED:"You have some unsaved data on the page!",
     YES:"yes",
@@ -136,5 +141,3 @@
 
     DO_YOU_CONFIRM:"Do you confirm?"
   };
-
-  

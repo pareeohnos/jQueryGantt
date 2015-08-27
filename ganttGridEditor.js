@@ -39,36 +39,40 @@ GridEditor.prototype.fillEmptyLines = function () {
     //click on empty row create a task and fill above
     var master = this.master;
     emptyRow.click(function (ev) {
-      var emptyRow = $(this);
+      return;
+      // var emptyRow = $(this);
       //add on the first empty row only
-      if (!master.canWrite || emptyRow.prevAll(".emptyRow").size() > 0)
-        return
-
-      master.beginTransaction();
-      var lastTask;
-      var start = new Date().getTime();
-      var level = 0;
-      if (master.tasks[0]) {
-        start = master.tasks[0].start;
-        level = master.tasks[0].level + 1;
-      }
-
-      //fill all empty previouses
-      emptyRow.prevAll(".emptyRow").andSelf().each(function () {
-        var ch = factory.build("tmp_fk" + new Date().getTime(), "", "", level, start, 1);
-        var task = master.addTask(ch);
-        lastTask = ch;
-      });
-      master.endTransaction();
-      lastTask.rowElement.click();
-      lastTask.rowElement.find("[name=name]").focus()//focus to "name" input
-        .blur(function () { //if name not inserted -> undo -> remove just added lines
-          var imp = $(this);
-          if (imp.val() == "") {
-            lastTask.name="Task "+(lastTask.getRow()+1);
-            imp.val(lastTask.name);
-          }
-        });
+    //   if (!master.canWrite || emptyRow.prevAll(".emptyRow").size() > 0)
+    //     return
+    //
+    //   master.beginTransaction();
+    //   var lastTask;
+    //   var start = new Date().getTime();
+    //   var level = 0;
+    //   if (master.tasks[master.taskOrder[0]]) {
+    //   // if (master.tasks[0]) {
+    //     start = master.tasks[master.taskOrder[0]].start;
+    //     level = master.tasks[master.taskOrder[0]].level + 1;
+    //     // start = master.tasks[0].start;
+    //     // level = master.tasks[0].level + 1;
+    //   }
+    //
+    //   //fill all empty previouses
+    //   emptyRow.prevAll(".emptyRow").andSelf().each(function () {
+    //     var ch = factory.build("tmp_fk" + new Date().getTime(), "", "", level, start, 1);
+    //     var task = master.addTask(ch);
+    //     lastTask = ch;
+    //   });
+    //   master.endTransaction();
+    //   lastTask.rowElement.click();
+    //   lastTask.rowElement.find("[name=name]").focus()//focus to "name" input
+    //     .blur(function () { //if name not inserted -> undo -> remove just added lines
+    //       var imp = $(this);
+    //       if (imp.val() == "") {
+    //         lastTask.name="Task "+(lastTask.getRow()+1);
+    //         imp.val(lastTask.name);
+    //       }
+    //     });
     });
     this.element.append(emptyRow);
   }
@@ -116,7 +120,7 @@ GridEditor.prototype.addTask = function (task, row, hideIfParentCollapsed) {
     var collapsedDescendant = this.master.getCollapsedDescendant();
     if(collapsedDescendant.indexOf(task) >= 0) taskRow.hide();
   }
-          
+
 
   return taskRow;
 };
@@ -128,6 +132,7 @@ GridEditor.prototype.refreshExpandStatus = function(task){
   if(child.length > 0 && task.rowElement.has(".expcoll").length == 0)
   {
     task.rowElement.find(".exp-controller").addClass('expcoll exp');
+    task.rowElement.find('.exp-controller').append($('<i class="plus square outline icon" />'));
   }
   else if(child.length == 0 && task.rowElement.has(".expcoll").length > 0)
   {
@@ -163,9 +168,12 @@ GridEditor.prototype.refreshTaskRow = function (task) {
 };
 
 GridEditor.prototype.redraw = function () {
-  for (var i = 0; i < this.master.tasks.length; i++) {
-    this.refreshTaskRow(this.master.tasks[i]);
+  for (var i = 0; i < this.master.taskOrder.length; i++) {
+    this.refreshTaskRow(this.master.tasks[this.master.taskOrder[i]]);
   }
+  // for (var i = 0; i < this.master.tasks.length; i++) {
+  //   this.refreshTaskRow(this.master.tasks[i]);
+  // }
 };
 
 GridEditor.prototype.reset = function () {
@@ -210,9 +218,15 @@ GridEditor.prototype.bindRowExpandEvents = function (task, taskRow) {
           childTask.rowElement.show();
         }
 
+        el.find('i').remove();
+        el.append($('<i class="minus square outline icon" />'));
+
      } else {
         for (var i=0;i<descs.length;i++)
         descs[i].rowElement.hide();
+
+        el.find('i').remove();
+        el.append($('<i class="plus square outline icon" />'));
      }
      self.master.gantt.refreshGantt();
 

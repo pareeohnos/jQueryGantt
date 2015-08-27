@@ -235,7 +235,7 @@ $.splittify = {
     //move to next working day
     while (isHoliday(d)) {
       d.setDate(d.getDate() + 1);
-    } 
+    }
     d.setHours(0, 0, 0, 0);
     return d;
   }
@@ -257,7 +257,8 @@ $.splittify = {
   function computeEndByDuration(start, duration) {
     var d = new Date(start);
     //console.debug("computeEndByDuration start ",d,duration)
-    var q = duration - 1;
+    // var q = duration - 1;
+    var q = duration;
     while (q > 0) {
       d.setDate(d.getDate() + 1);
       if (!isHoliday(d))

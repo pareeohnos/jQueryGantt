@@ -40,7 +40,7 @@ function Ganttalendar(zoom, startmillis, endMillis, master, minGanttSize) {
 
   this.linkOnProgress = false; //set to true when creating a new link
 
-  this.rowHeight = 30; // todo get it from css?
+  this.rowHeight = 40; // todo get it from css?
   this.taskHeight=20;
   this.taskVertOffset=(this.rowHeight-this.taskHeight)/2
 
@@ -233,10 +233,12 @@ Ganttalendar.prototype.create = function (zoom, originalStartmillis, originalEnd
         var daysInMonth = Math.round((date.getTime() - sm) / (3600000 * 24));
         tr1.append(createHeadCell(new Date(sm).format("MMMM yyyy"), daysInMonth)); //spans mumber of dayn in the month
       }, function (date) {
-        tr2.append(createHeadCell(date.format("d"), 1, isHoliday(date) ? "holyH" : null, 25));
+        // tr2.append(createHeadCell(date.format("d"), 1, isHoliday(date) ? "holyH" : null, 25));
+        tr2.append(createHeadCell(date.format("d"), 1, isWeekend(date) ? "holyH" : null, 25));
         var nd = new Date(date.getTime());
         nd.setDate(date.getDate() + 1);
-        trBody.append(createBodyCell(1, nd.getDate() == 1, isHoliday(date) ? "holy" : null));
+        // trBody.append(createBodyCell(1, nd.getDate() == 1, isHoliday(date) ? "holy" : null));
+        trBody.append(createBodyCell(1, nd.getDate() == 1, isWeekend(date) ? "holy" : null));
         date.setDate(date.getDate() + 1);
       });
 
@@ -420,7 +422,8 @@ Ganttalendar.prototype.drawTask = function (task) {
         task.rowElement.click();
       }).dragExtedSVG($(self.svg.root()), {
         canResize:  this.master.canWrite && task.canWrite,
-        canDrag:    !task.depends && this.master.canWrite && task.canWrite,
+        // canDrag:    !task.depends && this.master.canWrite && task.canWrite,
+        canDrag:    this.master.canWrite && task.canWrite,
         startDrag:  function (e) {
           $(".ganttSVGBox .focused").removeClass("focused");
         },
@@ -543,9 +546,14 @@ Ganttalendar.prototype.drawTask = function (task) {
 
     //svg.title(taskSvg, task.name);
     //external box
-    var layout = svg.rect(taskSvg, 0, 0, "100%", "100%", {class:"taskLayout", rx:"2", ry:"2"});
-
-    svg.rect(taskSvg, 0, 0, "100%", "100%", {fill:"rgba(255,255,255,.3)"});
+    var layout;
+    if (!task.hasChild) {
+      layout = svg.rect(taskSvg, 0, 0, "100%", "100%", {class:"taskLayout", rx:"10", ry:"10"});
+    } else {
+      svg.rect(taskSvg, 0, 0, "100%", 10, { fill: "#2185d0", rx: '5', ry: '5' });
+      svg.polygon(taskSvg, [[0, 5], [20, 5], [0, dimensions.height]], { fill: "#2185d0" });
+      svg.polygon(taskSvg, [[dimensions.width - 20, 5], [dimensions.width, 5], [dimensions.width, dimensions.height]], { fill: "#2185d0" });
+    }
 
     //external dep
     if (task.hasExternalDep)
@@ -563,9 +571,6 @@ Ganttalendar.prototype.drawTask = function (task) {
         svg.text(taskSvg, (task.progress > 90 ? 100 : task.progress) + "%", (self.rowHeight-5)/2, (task.progress>100?"!!! ":"")+ task.progress + "%", textStyle);
       }
     }
-
-    if (task.hasChild)
-      svg.rect(taskSvg, 0, 0, "100%", 3, {fill:"#000"});
 
     if (task.startIsMilestone) {
       svg.image(taskSvg, -9, dimensions.height/2-9, 18, 18, self.master.resourceUrl + "milestone.png")
@@ -778,8 +783,10 @@ Ganttalendar.prototype.reset = function () {
 Ganttalendar.prototype.redrawTasks = function () {
   //[expand]
   var collapsedDescendant = this.master.getCollapsedDescendant();
-  for (var i = 0; i < this.master.tasks.length; i++) {
-    var task = this.master.tasks[i];
+  for (var i = 0; i < this.master.taskOrder.length; i++) {
+  // for (var i = 0; i < this.master.tasks.length; i++) {
+    var task = this.master.tasks[this.master.taskOrder[i]];
+    // var task = this.master.tasks[i];
     if (collapsedDescendant.indexOf(task) >= 0) continue;
     this.drawTask(task);
   }
@@ -811,7 +818,7 @@ Ganttalendar.prototype.refreshGantt = function () {
   par.append(domEl);
   this.redrawTasks();
 
-  //set old scroll  
+  //set old scroll
   //console.debug("old scroll:",scrollX,scrollY)
   par.scrollTop(scrollY);
   par.scrollLeft(scrollX);

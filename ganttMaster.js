@@ -21,7 +21,8 @@
  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 function GanttMaster() {
-  this.tasks = [];
+  this.tasks = {};
+  this.taskOrder = [];
   this.deletedTaskIds = [];
   this.links = [];
 
@@ -45,7 +46,7 @@ function GanttMaster() {
 
   this.currentTask; // task currently selected;
 
-  this.resourceUrl = 'res/'; // URL to resources (images etc.)
+  this.resourceUrl = '/assets/'; // URL to resources (images etc.)
   this.__currentTransaction;  // a transaction object holds previous state during changes
   this.__undoStack = [];
   this.__redoStack = [];
@@ -240,15 +241,26 @@ GanttMaster.prototype.createResource = function (id, name) {
 //update depends strings
 GanttMaster.prototype.updateDependsStrings = function () {
   //remove all deps
-  for (var i = 0; i < this.tasks.length; i++) {
-    this.tasks[i].depends = "";
-  }
+  var _this = this;
+  $.each(this.tasks, function(k, task) {
+    task.depends = "";
 
-  for (var i = 0; i < this.links.length; i++) {
-    var link = this.links[i];
-    var dep = link.to.depends;
-    link.to.depends = link.to.depends + (link.to.depends == "" ? "" : ",") + (link.from.getRow() + 1) + (link.lag ? ":" + link.lag : "");
-  }
+    for (var i = 0; i < _this.links.length; i++) {
+      var link = _this.links[i];
+      var dep = link.to.depends;
+      link.to.depends = link.to.depends + (link.to.depends == "" ? "" : ",") + (link.from.id) + (link.lag ? ":" + link.lag : "");
+      // link.to.depends = link.to.depends + (link.to.depends == "" ? "" : ",") + (link.from.getRow() + 1) + (link.lag ? ":" + link.lag : "");
+    }
+  })
+  // for (var i = 0; i < this.tasks.length; i++) {
+  //   this.tasks[i].depends = "";
+  // }
+
+  // for (var i = 0; i < this.links.length; i++) {
+  //   var link = this.links[i];
+  //   var dep = link.to.depends;
+  //   link.to.depends = link.to.depends + (link.to.depends == "" ? "" : ",") + (link.from.getRow() + 1) + (link.lag ? ":" + link.lag : "");
+  // }
 
 };
 
@@ -304,42 +316,29 @@ GanttMaster.prototype.addTask = function (task, row) {
 
   //replace if already exists
   var pos = -1;
-  for (var i = 0; i < this.tasks.length; i++) {
-    if (task.id == this.tasks[i].id) {
-      pos = i;
-      break;
-    }
+  if (this.tasks[task.id] !== undefined) {
+    row = this.taskOrder.indexOf(task.id);
+    delete this.tasks[task.id];
   }
 
-  if (pos >= 0) {
-    this.tasks.splice(pos, 1);
-    row = parseInt(pos);
-  }
+  this.tasks[task.id] = task;
+  this.taskOrder.push(task.id);
+  this.updateDependsStrings();
 
-  //add task in collection
-  if (typeof(row) != "number") {
-    this.tasks.push(task);
-  } else {
-    this.tasks.splice(row, 0, task);
-
-    //recompute depends string
-    this.updateDependsStrings();
-  }
-
-  //add Link collection in memory
   var linkLoops = !this.updateLinks(task);
 
-  //set the status according to parent
-  if (task.getParent())
+  if (task.getParent()) {
     task.status = task.getParent().status;
-  else
+  } else {
     task.status = "STATUS_ACTIVE";
+  }
 
   var ret = task;
   if (linkLoops || !task.setPeriod(task.start, task.end)) {
     //remove task from in-memory collection
     //console.debug("removing task from memory",task);
-    this.tasks.splice(task.getRow(), 1);
+    delete this.tasks[task.id];
+    this.taskOrder.splice($.inArray(task.id, this.taskOrder), 1);
     ret = undefined;
   } else {
     //append task to editor
@@ -348,6 +347,51 @@ GanttMaster.prototype.addTask = function (task, row) {
     this.gantt.addTask(task);
   }
   return ret;
+
+  // for (var i = 0; i < this.tasks.length; i++) {
+  //   if (task.id == this.tasks[i].id) {
+  //     pos = i;
+  //     break;
+  //   }
+  // }
+
+  // if (pos >= 0) {
+  //   this.tasks.splice(pos, 1);
+  //   row = parseInt(pos);
+  // }
+
+  //add task in collection
+  // if (typeof(row) != "number") {
+  //   this.tasks.push(task);
+  // } else {
+  //   this.tasks.splice(row, 0, task);
+  //
+  //   //recompute depends string
+  //   this.updateDependsStrings();
+  // }
+
+  //add Link collection in memory
+  // var linkLoops = !this.updateLinks(task);
+
+  //set the status according to parent
+  // if (task.getParent())
+  //   task.status = task.getParent().status;
+  // else
+  //   task.status = "STATUS_ACTIVE";
+
+  // var ret = task;
+  // if (linkLoops || !task.setPeriod(task.start, task.end)) {
+  //   //remove task from in-memory collection
+  //   //console.debug("removing task from memory",task);
+  //   this.tasks.splice(task.getRow(), 1);
+  //   ret = undefined;
+  // } else {
+  //   //append task to editor
+  //   this.editor.addTask(task, row);
+  //   //append task to gantt
+  //   this.gantt.addTask(task);
+  // }
+  // return ret;
 };
 
 
@@ -376,7 +420,7 @@ GanttMaster.prototype.loadProject = function (project) {
 
   this.loadTasks(project.tasks, project.selectedRow);
   this.deletedTaskIds = [];
-  
+
   //recover saved splitter position
   if (project.splitterPosition)
     this.splitter.resize(project.splitterPosition);
@@ -412,61 +456,80 @@ GanttMaster.prototype.loadTasks = function (tasks, selectedRow) {
       task = t;
     }
     task.master = this; // in order to access controller from task
-    this.tasks.push(task);  //append task at the end
+    // this.tasks.push(task);  //append task at the end
+    this.tasks[task.id] = task;
+    this.taskOrder.push(task.id);
   }
 
   //var prof=new Profiler("gm_loadTasks_addTaskLoop");
-  for (var i = 0; i < this.tasks.length; i++) {
-    var task = this.tasks[i];
+  var _this = this;
+  $.each(this.taskOrder, function(i, id) {
+    var task = _this.tasks[id];
+  // for (var i = 0; i < this.tasks.length; i++) {
+  //   var task = this.tasks[i];
 
 
-    var numOfError=this.__currentTransaction&&this.__currentTransaction.errors?this.__currentTransaction.errors.length:0;
+    var numOfError=_this.__currentTransaction&&_this.__currentTransaction.errors?_this.__currentTransaction.errors.length:0;
     //add Link collection in memory
-    while (!this.updateLinks(task)){  // error on update links while loading can be considered as "warning". Can be displayed and removed in order to let transaction commits.
-      if (this.__currentTransaction && numOfError!=this.__currentTransaction.errors.length){
+    while (!_this.updateLinks(task)){  // error on update links while loading can be considered as "warning". Can be displayed and removed in order to let transaction commits.
+      if (_this.__currentTransaction && numOfError!=_this.__currentTransaction.errors.length){
         var msg = "";
-        while (numOfError<this.__currentTransaction.errors.length) {
-          var err = this.__currentTransaction.errors.pop();
+        while (numOfError<_this.__currentTransaction.errors.length) {
+          var err = _this.__currentTransaction.errors.pop();
           msg = msg + err.msg + "\n\n";
         }
         alert(msg);
       }
-      this.removeAllLinks(task,false);
+      _this.removeAllLinks(task,false);
     }
 
     if (!task.setPeriod(task.start, task.end)) {
       alert(GanttMaster.messages.GANNT_ERROR_LOADING_DATA_TASK_REMOVED + "\n" + task.name + "\n" +GanttMaster.messages.ERROR_SETTING_DATES);
         //remove task from in-memory collection
-      this.tasks.splice(task.getRow(), 1);
+      // this.tasks.splice(task.getRow(), 1);
+      delete _this.tasks[task.id];
+      _this.taskOrder.splice(task.getRow());
     } else {
       //append task to editor
-      this.editor.addTask(task, null, true);
+      _this.editor.addTask(task, null, true);
       //append task to gantt
-      this.gantt.addTask(task);
+      _this.gantt.addTask(task);
     }
-  }
+  });
 
   this.editor.fillEmptyLines();
   //prof.stop();
 
   // re-select old row if tasks is not empty
-  if (this.tasks && this.tasks.length > 0) {
+  if (this.taskOrder && this.taskOrder.length > 0) {
     selectedRow = selectedRow ? selectedRow : 0;
-    this.tasks[selectedRow].rowElement.click();
+    this.tasks[this.taskOrder[selectedRow]].rowElement.click();
   }
+  // if (this.tasks && this.tasks.length > 0) {
+  //   selectedRow = selectedRow ? selectedRow : 0;
+  //   this.tasks[selectedRow].rowElement.click();
+  // }
 };
 
 
 GanttMaster.prototype.getTask = function (taskId) {
   var ret;
-  for (var i = 0; i < this.tasks.length; i++) {
-    var tsk = this.tasks[i];
-    if (tsk.id == taskId) {
-      ret = tsk;
-      break;
+  $.each(this.tasks, function(i, task) {
+    if (task.id == taskId) {
+      ret = task;
+      return false;
     }
-  }
+  });
+
   return ret;
+  // for (var i = 0; i < this.tasks.length; i++) {
+  //   var tsk = this.tasks[i];
+  //   if (tsk.id == taskId) {
+  //     ret = tsk;
+  //     break;
+  //   }
+  // }
+  // return ret;
 };
 
 
@@ -517,7 +580,9 @@ GanttMaster.prototype.redraw = function () {
 };
 
 GanttMaster.prototype.reset = function () {
-  this.tasks = [];
+  // this.tasks = [];
+  this.tasks = {};
+  this.taskOrder = [];
   this.links = [];
   this.deletedTaskIds = [];
   if (!this.__inUndoRedo) {
@@ -545,15 +610,16 @@ GanttMaster.prototype.saveProject = function () {
 GanttMaster.prototype.saveGantt = function (forTransaction) {
   //var prof = new Profiler("gm_saveGantt");
   var saved = [];
-  for (var i = 0; i < this.tasks.length; i++) {
-    var task = this.tasks[i];
+  $.each(this.tasks, function(i, task) {
+  // for (var i = 0; i < this.tasks.length; i++) {
+    // var task = this.tasks[i];
     var cloned = task.clone();
     delete cloned.master;
     delete cloned.rowElement;
     delete cloned.ganttElement;
 
     saved.push(cloned);
-  }
+  });
 
   var ret = {tasks:saved};
   if (this.currentTask) {
@@ -663,7 +729,8 @@ GanttMaster.prototype.updateLinks = function (task) {
         lag = parseInt(par[1]);
       }
 
-      var sup = this.tasks[parseInt(par[0] - 1)];
+      // var sup = this.tasks[parseInt(par[0] - 1)];
+      var sup = this.tasks[parseInt(par[0])];
 
       if (sup) {
         if (parents && parents.indexOf(sup) >= 0) {
@@ -815,7 +882,7 @@ GanttMaster.prototype.deleteCurrentTask=function(){
 
     //redraw
     self.redraw();
-  
+
     //[expand]
     if(par) self.editor.refreshExpandStatus(par);
 
@@ -867,14 +934,16 @@ GanttMaster.prototype.endTransaction = function () {
     //shrink gantt bundaries
     this.gantt.originalStartMillis = Infinity;
     this.gantt.originalEndMillis = -Infinity;
-    for (var i = 0; i < this.tasks.length; i++) {
-      var task = this.tasks[i];
-      if (this.gantt.originalStartMillis > task.start)
-        this.gantt.originalStartMillis = task.start;
-      if (this.gantt.originalEndMillis < task.end)
-        this.gantt.originalEndMillis = task.end;
+    var _this = this;
+    $.each(this.tasks, function(i, task) {
+    // for (var i = 0; i < this.tasks.length; i++) {
+      // var task = this.tasks[i];
+      if (_this.gantt.originalStartMillis > task.start)
+        _this.gantt.originalStartMillis = task.start;
+      if (_this.gantt.originalEndMillis < task.end)
+        _this.gantt.originalEndMillis = task.end;
 
-    }
+    });
     this.taskIsChanged(); //enqueue for gantt refresh
 
 
@@ -961,11 +1030,13 @@ GanttMaster.prototype.resize = function () {
 GanttMaster.prototype.getCollapsedDescendant = function(){
     var allTasks = this.tasks;
     var collapsedDescendant = [];
-    for (var i = 0; i < allTasks.length; i++) {
-       var task = allTasks[i];
-       if(collapsedDescendant.indexOf(task) >= 0) continue;
+    $.each(allTasks, function(i, task) {
+    // for (var i = 0; i < allTasks.length; i++) {
+    //    var task = allTasks[i];
+      //  if(collapsedDescendant.indexOf(task) >= 0) continue;
+      if(collapsedDescendant.indexOf(task) >= 0) return true;
        if(task.collapsed) collapsedDescendant = collapsedDescendant.concat(task.getDescendant());
-    }
+    });
     return collapsedDescendant;
 }
 
@@ -991,7 +1062,8 @@ GanttMaster.prototype.computeCriticalPath = function () {
     return false;
 
   // do not consider grouping tasks
-  var tasks = this.tasks.filter(function (t) {
+  var tasks = $.map(this.tasks, function(task, id) { return task }).filter(function(t) {
+  // var tasks = this.tasks.filter(function (t) {
     //return !t.isParent()
     return (t.getRow()  > 0) && (!t.isParent() || (t.isParent() && !t.isDependent()));
   });
@@ -1091,7 +1163,7 @@ GanttMaster.prototype.computeCriticalPath = function () {
 
   function initials(tasks) {
     var initials = [];
-    for (var i = 0; i < tasks.length; i++) {      
+    for (var i = 0; i < tasks.length; i++) {
       if (!tasks[i].depends || tasks[i].depends == "")
         initials.push(tasks[i]);
     }
