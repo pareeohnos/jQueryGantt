@@ -251,8 +251,8 @@ Ganttalendar.prototype.create = function (zoom, originalStartmillis, originalEnd
         tr1.append(createHeadCell(date.format("MMM d") + " - " + end.format("MMM d'yy"), 7));
         date.setDate(date.getDate() + 7);
       }, function (date) {
-        tr2.append(createHeadCell(date.format("EEEE").substr(0, 1), 1, isHoliday(date) ? "holyH" : null, 40));
-        trBody.append(createBodyCell(1, date.getDay() % 7 == (self.master.firstDayOfWeek + 6) % 7, isHoliday(date) ? "holy" : null));
+        tr2.append(createHeadCell(date.format("EEEE").substr(0, 1), 1, isWeekend(date) ? "holyH" : null, 40));
+        trBody.append(createBodyCell(1, date.getDay() % 7 == (self.master.firstDayOfWeek + 6) % 7, isWeekend(date) ? "holy" : null));
         date.setDate(date.getDate() + 1);
       });
 
@@ -265,8 +265,8 @@ Ganttalendar.prototype.create = function (zoom, originalStartmillis, originalEnd
         tr1.append(createHeadCell(date.format("MMMM d") + " - " + end.format("MMMM d yyyy"), 7));
         date.setDate(date.getDate() + 7);
       }, function (date) {
-        tr2.append(createHeadCell(date.format("EEE d"), 1, isHoliday(date) ? "holyH" : null, 100));
-        trBody.append(createBodyCell(1, date.getDay() % 7 == (self.master.firstDayOfWeek + 6) % 7, isHoliday(date) ? "holy" : null));
+        tr2.append(createHeadCell(date.format("EEE d"), 1, isWeekend(date) ? "holyH" : null, 100));
+        trBody.append(createBodyCell(1, date.getDay() % 7 == (self.master.firstDayOfWeek + 6) % 7, isWeekend(date) ? "holy" : null));
         date.setDate(date.getDate() + 1);
       });
 
@@ -307,6 +307,10 @@ Ganttalendar.prototype.create = function (zoom, originalStartmillis, originalEnd
 
         //creates gradient and definitions
         var defs = svg.defs('myDefs');
+
+        var marker = svg.marker(defs, 'arrow-marker', 300, 256, 5, 5, { markerUnits: "strokeWidth", viewBox: '0 0 512 512' });
+        svg.path(marker, 'M298.3,256L298.3,256L298.3,256L131.1,81.9c-4.2-4.3-4.1-11.4,0.2-15.8l29.9-30.6c4.3-4.4,11.3-4.5,15.5-0.2l204.2,212.7c2.2,2.2,3.2,5.2,3,8.1c0.1,3-0.9,5.9-3,8.1L176.7,476.8c-4.2,4.3-11.2,4.2-15.5-0.2L131.3,446c-4.3-4.4-4.4-11.5-0.2-15.8L298.3,256z', { fill: '#f2711c' });
+
 
 
         //create backgound
@@ -623,69 +627,146 @@ Ganttalendar.prototype.drawLink = function (from, to, type) {
     return rect;
   }
 
+
+  function updateLink() {
+
+    var svg = self.svg,
+      group = $(this),
+       type = group.data('type'),
+       from = group.data("from"),
+         to = group.data("to"),
+     spacer = 5;
+
+    var rectFrom = buildRect(from),
+          rectTo = buildRect(to);
+
+
+    var fx1 = rectFrom.left,
+        fx2 = rectFrom.left + rectFrom.width,
+         fy = rectFrom.height / 2 + rectFrom.top,
+
+        tx1 = rectTo.left,
+        tx2 = rectTo.left + rectTo.width,
+         ty = rectTo.height / 2 + rectTo.top;
+
+    var fromX,
+        fromY,
+        toX,
+        toY;
+
+    var tooClose,
+        startDir,
+        endDir,
+        prev,
+        fprev;
+
+    if (type === 'end-to-start') {
+      // Too close if the start of the 'to' task is
+      // before the end of the 'from' task plus a bit
+      tooClose = tx1 < fx2 + (2 * peduncolusSize);
+      fromX = fx2;
+      fromY = fy;
+      toX = tx1,
+      toY = ty;
+      startDir = 1;
+      endDir = 1;
+
+      prev = fromX + (2 * peduncolusSize) > toX;
+    } else if (type === 'end-to-end') {
+      // For end to end, it doesn't matter. It can't be
+      // considered "too close"
+      tooClose = false;
+      fromX = fx2;
+      fromY = fy;
+      toX = tx2,
+      toY = ty;
+      startDir = 1;
+      endDir = -1;
+
+      prev = false;
+    } else if (type === 'start-to-end') {
+      // Too close if the end of the 'to' task is
+      // after the start of the 'from' task plus a bit
+      tooClose = fx1 < tx2 - (2 * peduncolusSize);
+      fromX = fx1;
+      fromY = fy;
+      toX = tx2,
+      toY = ty;
+      startDir = -1;
+      endDir = -1
+
+      prev = !(fromX - (2 * peduncolusSize) < toX);
+    } else if (type === 'start-to-start') {
+      // For start to start, it doesn't matter. It can't be
+      // considered "too close"
+      tooClose = false;
+      fromX = fx1;
+      fromY = fy;
+      toX = tx1;
+      toY = ty;
+      startDir = -1;
+      endDir = 1;
+
+      prev = false;
+    }
+
+
+    var    radius = 5,
+      arrowOffset = 5,
+               up = fy > ty,
+              fup = up ? -1 : 1;
+
+    var fprev = prev ? -1 : 1;
+
+    // var image = group.find("image");
+    var p = svg.createPath();
+
+    if (tooClose) {
+
+      var firstLine = fup * (rectFrom.height / 2 - 2 * radius + 2);
+      p.move(fromX, fromY)
+        .line(startDir * peduncolusSize, 0, true)
+        .arc(radius, radius, 90, false, !up, radius, fup * radius, true)
+        .line(0, fup * ((Math.abs(toY - fromY) / 2) - (radius * 2)), true)
+        .arc(radius, radius, 90, false, !up, -radius, fup * radius, true)
+        .line(fprev * 2 * peduncolusSize + (toX - fromX), 0, true)
+        .arc(radius, radius, 90, false, up, -radius, fup * radius, true)
+        .line(0, fup * ((Math.abs(toY - fromY) / 2) - (radius * 2)), true)
+        .arc(radius, radius, 90, false, up, radius, fup * radius, true)
+        .line(peduncolusSize - spacer, 0, true);
+
+        // .line(peduncolusSize, 0, true)
+        // .arc(radius, radius, 90, false, !up, radius, fup * radius, true)
+        // .line(0, firstLine, true)
+        // .arc(radius, radius, 90, false, !up, -radius, fup * radius, true)
+        // .line(fprev * 2 * peduncolusSize + (tx1 - fx2), 0, true)
+        // .arc(radius, radius, 90, false, up, -radius, fup * radius, true)
+        // .line(0, (Math.abs(ty - fy) - 4 * radius - Math.abs(firstLine)) * fup - arrowOffset, true)
+        // .arc(radius, radius, 90, false, up, radius, fup * radius, true)
+        // .line(peduncolusSize, 0, true);
+
+      // image.attr({ x: toX - 5, y: toY - arrowOffset });
+      // image.attr({x:tx1 - 5, y:ty - 5 - arrowOffset});
+
+    } else {
+      p.move(fx2, fy)
+        .line((tx1 - fx2) / 2 - radius, 0, true)
+        .arc(radius, radius, 90, false, !up, radius, fup * radius, true)
+        .line(0, ty - fy - fup * 2 * radius + arrowOffset, true)
+        .arc(radius, radius, 90, false, up, radius, fup * radius, true)
+        .line((tx1 - fx2) / 2 - radius, 0, true);
+      image.attr({x:tx1 - 5, y:ty - 5 + arrowOffset});
+    }
+
+    group.find("path").attr({d:p.path()});
+  }
+
+
   /**
    * The default rendering method, which paints a start to end dependency.
    */
-  function drawStartToEnd(from, to, ps) {
+  function drawEndToStart(from, to, ps) {
     var svg = self.svg;
-
-    //this function update an existing link
-    function update() {
-      var group = $(this);
-      var from = group.data("from");
-      var to = group.data("to");
-
-      var rectFrom = buildRect(from);
-      var rectTo = buildRect(to);
-
-      var fx1 = rectFrom.left;
-      var fx2 = rectFrom.left + rectFrom.width;
-      var fy = rectFrom.height / 2 + rectFrom.top;
-
-      var tx1 = rectTo.left;
-      var tx2 = rectTo.left + rectTo.width;
-      var ty = rectTo.height / 2 + rectTo.top;
-
-
-      var tooClose = tx1 < fx2 + 2 * ps;
-      var r = 5; //radius
-      var arrowOffset = 5;
-      var up = fy > ty;
-      var fup = up ? -1 : 1;
-
-      var prev = fx2 + 2 * ps > tx1;
-      var fprev = prev ? -1 : 1;
-
-      var image = group.find("image");
-      var p = svg.createPath();
-
-      if (tooClose) {
-        var firstLine = fup * (rectFrom.height / 2 - 2 * r + 2);
-        p.move(fx2, fy)
-          .line(ps, 0, true)
-          .arc(r, r, 90, false, !up, r, fup * r, true)
-          .line(0, firstLine, true)
-          .arc(r, r, 90, false, !up, -r, fup * r, true)
-          .line(fprev * 2 * ps + (tx1 - fx2), 0, true)
-          .arc(r, r, 90, false, up, -r, fup * r, true)
-          .line(0, (Math.abs(ty - fy) - 4 * r - Math.abs(firstLine)) * fup - arrowOffset, true)
-          .arc(r, r, 90, false, up, r, fup * r, true)
-          .line(ps, 0, true);
-        image.attr({x:tx1 - 5, y:ty - 5 - arrowOffset});
-
-      } else {
-        p.move(fx2, fy)
-          .line((tx1 - fx2) / 2 - r, 0, true)
-          .arc(r, r, 90, false, !up, r, fup * r, true)
-          .line(0, ty - fy - fup * 2 * r + arrowOffset, true)
-          .arc(r, r, 90, false, up, r, fup * r, true)
-          .line((tx1 - fx2) / 2 - r, 0, true);
-        image.attr({x:tx1 - 5, y:ty - 5 + arrowOffset});
-      }
-
-      group.find("path").attr({d:p.path()});
-    }
-
 
     // create the group
     var group = svg.group(self.linksGroup, "" + from.id + "-" + to.id);
@@ -694,12 +775,12 @@ Ganttalendar.prototype.drawLink = function (from, to, type) {
     var p = svg.createPath();
 
     //add the arrow
-    svg.image(group, 0, 0, 5, 10, self.master.resourceUrl + "linkArrow.png");
+    // svg.image(group, 0, 0, 5, 10, self.master.resourceUrl + "linkArrow.png");
     //create empty path
-    svg.path(group, p, {class:"taskLinkPathSVG"});
+    svg.path(group, p, {class:"taskLinkPathSVG", 'marker-end': 'url(#arrow-marker)' });
 
     //set "from" and "to" to the group, bind "update" and trigger it
-    var jqGroup = $(group).data({from:from, to:to }).attr({from:from.id, to:to.id}).on("update", update).trigger("update");
+    var jqGroup = $(group).data({from:from, to:to, type: 'end-to-start' }).attr({from:from.id, to:to.id}).on("update", updateLink).trigger("update");
 
     if (self.showCriticalPath && from.isCritical && to.isCritical)
       jqGroup.addClass("critical");
@@ -712,18 +793,32 @@ Ganttalendar.prototype.drawLink = function (from, to, type) {
   /**
    * A rendering method which paints a start to start dependency.
    */
-  function drawStartToStart(from, to) {
+  function drawStartToStart(from, to, ps) {
     console.error("StartToStart not supported on SVG");
     var rectFrom = buildRect(from);
     var rectTo = buildRect(to);
   }
 
+  function drawStartToEnd(from, to, ps) {
+
+  }
+
+  function drawEndToEnd(from, to, ps) {
+
+  }
+
   var link;
   // Dispatch to the correct renderer
+  type = type.replace(/_/g, '-');
+  console.log(type);
   if (type == 'start-to-start') {
     link = drawStartToStart(from, to, peduncolusSize);
-  } else {
+  } else if (type == 'end-to-start') {
+    link = drawEndToStart(from, to, peduncolusSize);
+  } else if (type == 'start-to-end') {
     link = drawStartToEnd(from, to, peduncolusSize);
+  } else if (type == 'end-to-end') {
+    link = drawEndToEnd(from, to, peduncolusSize);
   }
 
   if (this.master.canWrite && (from.canWrite || to.canWrite)) {
@@ -767,7 +862,7 @@ Ganttalendar.prototype.redrawLinks = function () {
 
       if (collapsedDescendant.indexOf(link.from) >= 0 || collapsedDescendant.indexOf(link.to) >= 0) continue;
 
-      self.drawLink(link.from, link.to);
+      self.drawLink(link.from, link.to, link.to.date_calculation_type);
     }
     //prof.stop();
   });
