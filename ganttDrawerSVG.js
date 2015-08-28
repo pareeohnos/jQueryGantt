@@ -656,58 +656,49 @@ Ganttalendar.prototype.drawLink = function (from, to, type) {
 
     var tooClose,
         startDir,
-        endDir,
         prev,
         fprev;
 
     if (type === 'end-to-start') {
       // Too close if the start of the 'to' task is
       // before the end of the 'from' task plus a bit
-      tooClose = tx1 < fx2 + (2 * peduncolusSize);
+      tooClose = tx1 < fx2 + (2 * peduncolusSize + spacer);
       fromX = fx2;
       fromY = fy;
       toX = tx1,
       toY = ty;
-      startDir = 1;
-      endDir = 1;
 
-      prev = fromX + (2 * peduncolusSize) > toX;
+      prev = fromX + (2 * peduncolusSize + spacer) > toX;
     } else if (type === 'end-to-end') {
-      // For end to end, it doesn't matter. It can't be
-      // considered "too close"
+      // End to end links can't be "too close"
       tooClose = false;
+
       fromX = fx2;
       fromY = fy;
       toX = tx2,
       toY = ty;
-      startDir = 1;
-      endDir = -1;
 
       prev = false;
     } else if (type === 'start-to-end') {
       // Too close if the end of the 'to' task is
-      // after the start of the 'from' task plus a bit
-      tooClose = fx1 < tx2 - (2 * peduncolusSize);
+      // after the start of the 'from' task plus a bit.
+      tooClose = tx2 > fx1 - (2 * peduncolusSize + spacer);
       fromX = fx1;
       fromY = fy;
       toX = tx2,
       toY = ty;
-      startDir = -1;
-      endDir = -1
 
-      prev = !(fromX - (2 * peduncolusSize) < toX);
+      prev = !(fromX - (2 * peduncolusSize + spacer) < toX);
     } else if (type === 'start-to-start') {
-      // For start to start, it doesn't matter. It can't be
-      // considered "too close"
+      // start to start links can't be "too close"
       tooClose = false;
+
       fromX = fx1;
       fromY = fy;
       toX = tx1;
       toY = ty;
-      startDir = -1;
-      endDir = 1;
 
-      prev = false;
+      prev = true;
     }
 
 
@@ -718,44 +709,58 @@ Ganttalendar.prototype.drawLink = function (from, to, type) {
 
     var fprev = prev ? -1 : 1;
 
-    // var image = group.find("image");
     var p = svg.createPath();
+        p.move(fromX, fromY);
 
     if (tooClose) {
 
-      var firstLine = fup * (rectFrom.height / 2 - 2 * radius + 2);
-      p.move(fromX, fromY)
-        .line(startDir * peduncolusSize, 0, true)
-        .arc(radius, radius, 90, false, !up, radius, fup * radius, true)
-        .line(0, fup * ((Math.abs(toY - fromY) / 2) - (radius * 2)), true)
-        .arc(radius, radius, 90, false, !up, -radius, fup * radius, true)
-        .line(fprev * 2 * peduncolusSize + (toX - fromX), 0, true)
-        .arc(radius, radius, 90, false, up, -radius, fup * radius, true)
-        .line(0, fup * ((Math.abs(toY - fromY) / 2) - (radius * 2)), true)
-        .arc(radius, radius, 90, false, up, radius, fup * radius, true)
-        .line(peduncolusSize - spacer, 0, true);
+      var midLine,
+          toFromDiff = Math.abs(toX - fromX);
 
-        // .line(peduncolusSize, 0, true)
-        // .arc(radius, radius, 90, false, !up, radius, fup * radius, true)
-        // .line(0, firstLine, true)
-        // .arc(radius, radius, 90, false, !up, -radius, fup * radius, true)
-        // .line(fprev * 2 * peduncolusSize + (tx1 - fx2), 0, true)
-        // .arc(radius, radius, 90, false, up, -radius, fup * radius, true)
-        // .line(0, (Math.abs(ty - fy) - 4 * radius - Math.abs(firstLine)) * fup - arrowOffset, true)
-        // .arc(radius, radius, 90, false, up, radius, fup * radius, true)
-        // .line(peduncolusSize, 0, true);
+      if (type === 'end-to-start') {
+        midLine = (toX - fromX) > 0 ? (2 * peduncolusSize) + spacer - toFromDiff : (2 * peduncolusSize) + spacer + toFromDiff;
+      } else {
+        midLine = (toX - fromX) < 0 ? (2 * peduncolusSize) + spacer - toFromDiff : (2 * peduncolusSize) + spacer + toFromDiff;
+      }
 
-      // image.attr({ x: toX - 5, y: toY - arrowOffset });
-      // image.attr({x:tx1 - 5, y:ty - 5 - arrowOffset});
+      // too close only applies to the 'end to start' and
+      // 'start to end' dependencies. This is when they
+      // overlap times to the point where rendering them
+      // involves extra work.
+      startDir = type === 'end-to-start' ? 1 : -1;
+
+      p.line(startDir * peduncolusSize, 0, true)
+       .line(0, fup * Math.abs(toY - fromY) / 2, true)
+       .line(fprev * midLine, 0, true)
+       .line(0, fup * Math.abs(toY - fromY) / 2, true)
+       .line(-fprev * (peduncolusSize), 0, true);
 
     } else {
-      p.move(fx2, fy)
-        .line((tx1 - fx2) / 2 - radius, 0, true)
-        .arc(radius, radius, 90, false, !up, radius, fup * radius, true)
-        .line(0, ty - fy - fup * 2 * radius + arrowOffset, true)
-        .arc(radius, radius, 90, false, up, radius, fup * radius, true)
-        .line((tx1 - fx2) / 2 - radius, 0, true);
-      image.attr({x:tx1 - 5, y:ty - 5 + arrowOffset});
+      if (type === 'end-to-start' || type === 'start-to-end') {
+        startDir = type === 'end-to-start' ? 1 : -1;
+
+        p.line(fprev * (Math.abs(toX - fromX) / 2), 0, true)
+         .line(0, toY - fromY, true)
+         .line(fprev * (Math.abs(toX - fromX) / 2 - spacer), 0, true);
+         console.log(fprev);
+
+      } else {
+
+        if ((type === 'end-to-end' && toX > fromX) || (type === 'start-to-start' && toX < fromX)) {
+          p.line(fprev * (Math.abs(toX - fromX) + peduncolusSize + spacer), 0, true)
+           .line(0, toY - fromY, true)
+           .line(-fprev * peduncolusSize, 0, true)
+        } else if ((type === 'end-to-end' && fromX > toX) || (type === 'start-to-start' && fromX < toX)) {
+          p.line(fprev * (peduncolusSize + spacer), 0, true)
+           .line(0, toY - fromY, true)
+           .line(-fprev * (Math.abs(toX - fromX) + peduncolusSize), 0, true)
+        } else {
+          p.line(fprev * (peduncolusSize + spacer), 0, true)
+           .line(0, toY - fromY, true)
+           .line(-fprev * peduncolusSize, 0, true)
+        }
+
+      }
     }
 
     group.find("path").attr({d:p.path()});
@@ -765,22 +770,73 @@ Ganttalendar.prototype.drawLink = function (from, to, type) {
   /**
    * The default rendering method, which paints a start to end dependency.
    */
-  function drawEndToStart(from, to, ps) {
+  // function drawEndToStart(from, to, ps) {
+  //   var svg = self.svg;
+  //
+  //   // create the group
+  //   var group = svg.group(self.linksGroup, "" + from.id + "-" + to.id);
+  //   svg.title(group, from.name + " -> " + to.name);
+  //
+  //   //create empty path
+  //   var p = svg.createPath();
+  //   svg.path(group, p, {class:"taskLinkPathSVG", 'marker-end': 'url(#arrow-marker)' });
+  //
+  //   //set "from" and "to" to the group, bind "update" and trigger it
+  //   var jqGroup = $(group).data({from:from, to:to, type: 'end-to-start' }).attr({from:from.id, to:to.id}).on("update", updateLink).trigger("update");
+  //
+  //   if (self.showCriticalPath && from.isCritical && to.isCritical)
+  //     jqGroup.addClass("critical");
+  //
+  //   jqGroup.addClass("linkGroup");
+  //   return jqGroup;
+  // }
+
+
+  /**
+   * A rendering method which paints a start to start dependency.
+   */
+  // function drawStartToStart(from, to, ps) {
+  //   var svg = self.svg;
+  //
+  //   // create the group
+  //   var group = svg.group(self.linksGroup, "" + from.id + "-" + to.id);
+  //   svg.title(group, from.name + " -> " + to.name);
+  //
+  //   //create empty path
+  //   var p = svg.createPath();
+  //   svg.path(group, p, {class:"taskLinkPathSVG", 'marker-end': 'url(#arrow-marker)' });
+  //
+  //   //set "from" and "to" to the group, bind "update" and trigger it
+  //   var jqGroup = $(group).data({from:from, to:to, type: 'start-to-start' }).attr({from:from.id, to:to.id}).on("update", updateLink).trigger("update");
+  //
+  //   if (self.showCriticalPath && from.isCritical && to.isCritical)
+  //     jqGroup.addClass("critical");
+  //
+  //   jqGroup.addClass("linkGroup");
+  //   return jqGroup;
+  // }
+  //
+  // function drawStartToEnd(from, to, ps) {
+  //
+  // }
+  //
+  // function drawEndToEnd(from, to, ps) {
+  //
+  // }
+
+  function drawLinkType(type, from, to, ps) {
     var svg = self.svg;
 
     // create the group
     var group = svg.group(self.linksGroup, "" + from.id + "-" + to.id);
     svg.title(group, from.name + " -> " + to.name);
 
-    var p = svg.createPath();
-
-    //add the arrow
-    // svg.image(group, 0, 0, 5, 10, self.master.resourceUrl + "linkArrow.png");
     //create empty path
+    var p = svg.createPath();
     svg.path(group, p, {class:"taskLinkPathSVG", 'marker-end': 'url(#arrow-marker)' });
 
     //set "from" and "to" to the group, bind "update" and trigger it
-    var jqGroup = $(group).data({from:from, to:to, type: 'end-to-start' }).attr({from:from.id, to:to.id}).on("update", updateLink).trigger("update");
+    var jqGroup = $(group).data({from:from, to:to, type: type }).attr({from:from.id, to:to.id}).on("update", updateLink).trigger("update");
 
     if (self.showCriticalPath && from.isCritical && to.isCritical)
       jqGroup.addClass("critical");
@@ -789,37 +845,8 @@ Ganttalendar.prototype.drawLink = function (from, to, type) {
     return jqGroup;
   }
 
-
-  /**
-   * A rendering method which paints a start to start dependency.
-   */
-  function drawStartToStart(from, to, ps) {
-    console.error("StartToStart not supported on SVG");
-    var rectFrom = buildRect(from);
-    var rectTo = buildRect(to);
-  }
-
-  function drawStartToEnd(from, to, ps) {
-
-  }
-
-  function drawEndToEnd(from, to, ps) {
-
-  }
-
-  var link;
-  // Dispatch to the correct renderer
   type = type.replace(/_/g, '-');
-  console.log(type);
-  if (type == 'start-to-start') {
-    link = drawStartToStart(from, to, peduncolusSize);
-  } else if (type == 'end-to-start') {
-    link = drawEndToStart(from, to, peduncolusSize);
-  } else if (type == 'start-to-end') {
-    link = drawStartToEnd(from, to, peduncolusSize);
-  } else if (type == 'end-to-end') {
-    link = drawEndToEnd(from, to, peduncolusSize);
-  }
+  var link = drawLinkType(type, from, to, peduncolusSize);
 
   if (this.master.canWrite && (from.canWrite || to.canWrite)) {
     link.click(function (e) {
