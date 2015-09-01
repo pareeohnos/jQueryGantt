@@ -126,19 +126,19 @@ Task.prototype.setPeriod = function (start, end) {
   start = computeStart(start);
 
   //if depends -> start is set to max end + lag of superior
-  var sups = this.getSuperiors();
-  if (sups && sups.length > 0) {
-
-    var supEnd = 0;
-    for (var i=0;i<sups.length;i++) {
-      var link = sups[i];
-      supEnd = Math.max(supEnd, incrementDateByWorkingDays(link.from.end, link.lag));
-    }
-    //if changed by depends move it
-    if (computeStart(supEnd) != start) {
-      return this.moveTo(supEnd + 1, false);
-    }
-  }
+  // var sups = this.getSuperiors();
+  // if (sups && sups.length > 0) {
+  //
+  //   var supEnd = 0;
+  //   for (var i=0;i<sups.length;i++) {
+  //     var link = sups[i];
+  //     supEnd = Math.max(supEnd, incrementDateByWorkingDays(link.from.end, link.lag));
+  //   }
+  //   //if changed by depends move it
+  //   if (computeStart(supEnd) != start) {
+  //     return this.moveTo(supEnd + 1, false);
+  //   }
+  // }
 
   var somethingChanged = false;
 
@@ -239,7 +239,12 @@ Task.prototype.setPeriod = function (start, end) {
           this.master.setErrorOnTransaction(GanttMaster.messages["CANNOT_WRITE"] + "\n" + link.to.name, link.to);
           break;
         }
-        todoOk = link.to.moveTo(end, false); //this is not the right date but moveTo checks start
+        if (link.to.date_calculation_type === 'end_to_end' || link.to.date_calculation_type === 'end_to_start') {
+          todoOk = link.to.moveTo(link.to.start + (end - originalPeriod.end), false); //this is not the right date but moveTo checks start
+        } else {
+          todoOk = true;
+        }
+
         if (!todoOk)
           break;
       }
@@ -282,27 +287,66 @@ Task.prototype.moveTo = function (start, ignoreMilestones) {
   //if depends start is set to max end + lag of superior
   var sups = this.getSuperiors();
   if (sups && sups.length > 0) {
-    var supEnd = 0,
-      newStart = start;
+    var calcType = this.date_calculation_type.replace(/_/g, '-'),
+        superiorDate = 0,
+        newStart = start,
+        lag = 0;
 
-    for (var i=0;i<sups.length;i++) {
+    console.log(moment(new Date(start)));
+
+    // Find the relevant date to work from
+    for (var i = 0; i < sups.length; i++) {
       var link = sups[i];
-      // supEnd = Math.max(supEnd, incrementDateByWorkingDays(link.from.end, link.lag));
-      supEnd = Math.max(supEnd, link.from.end);
+      if (calcType === 'end-to-end' || calcType === 'end-to-start') {
+        superiorDate = Math.max(superiorDate, link.from.end);
+      } else {
+        superiorDate = Math.min(superiorDate === 0 ? link.from.start : superiorDate, link.from.start);
+        console.log(superiorDate);
+      }
     }
 
-    start = supEnd + 1;
-    var lag = moment(new Date(newStart)).diff(moment(new Date(start)), 'days')
+    console.log(moment(new Date(newStart)).add(this.duration - 1, 'days').endOf('day').valueOf(), superiorDate);
+    if (calcType === 'end-to-end' || calcType === 'start-to-end') {
+      if (moment(new Date(newStart)).add(this.duration, 'days').isAfter(moment(superiorDate)) || moment(new Date(newStart)).add(this.duration, 'days').isSame(moment(superiorDate))) {
+        lag = moment(new Date(newStart)).add(this.duration, 'days').diff(moment(new Date(superiorDate)), 'days');
+      } else {
+        lag = moment(new Date(newStart)).add(this.duration - 1, 'days').endOf('day').diff(moment(new Date(superiorDate)), 'days');
+      }
+    } else {
+      if (moment(new Date(newStart)).isAfter(moment(superiorDate)) || moment(new Date(newStart)).isSame(moment(superiorDate))) {
+        lag = moment(new Date(newStart)).diff(moment(new Date(superiorDate)), 'days');
+      } else {
+        lag = moment(new Date(newStart)).subtract(1, 'day').endOf('day').diff(moment(new Date(superiorDate)), 'days');
+      }
+    }
 
-    for (var i=0;i<sups.length;i++) {
+    console.log(lag);
+
+    // if (lag > 0) {
+    //   lag--;
+    // } else if (lag < 0) {
+    //   lag++;
+    // }
+
+    // console.log(lag);
+
+    for (var i = 0; i < sups.length; i++) {
       var link = sups[i];
       link.lag = lag;
     }
 
+    console.log(moment(new Date(superiorDate)).add(lag, 'days'));
+
     this.lead_lag_amount = Math.abs(lag);
     this.lead_or_lag = lag >= 0 ? 'lag' : 'lead';
 
-    start = incrementDateByWorkingDays(start, lag);
+    if (calcType === 'end-to-end' || calcType === 'start-to-end') {
+      start = moment(new Date(superiorDate)).add(lag, 'days').subtract(this.duration, 'days').valueOf();
+    } else {
+      start = moment(new Date(superiorDate)).add(lag, 'days').valueOf();
+    }
+
+    // start = incrementDateByWorkingDays(superiorDate, lag);
   }
   //set a legal start
   start = computeStart(start);
@@ -354,9 +398,12 @@ Task.prototype.moveTo = function (start, ignoreMilestones) {
         //this is not the right date but moveTo checks start
         if (!link.to.canWrite ) {
           this.master.setErrorOnTransaction(GanttMaster.messages["CANNOT_WRITE"]+ "\n"+link.to.name, link.to);
-        } else if (!link.to.moveTo(end, false)) {
-          return false;
+        } else {
+          return link.to.moveTo(link.to.start - panDelta, false);
         }
+        // } else if (!link.to.moveTo(end, false)) {
+        //   return false;
+        // }
       }
     }
 

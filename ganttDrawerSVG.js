@@ -742,7 +742,6 @@ Ganttalendar.prototype.drawLink = function (from, to, type) {
         p.line(fprev * (Math.abs(toX - fromX) / 2), 0, true)
          .line(0, toY - fromY, true)
          .line(fprev * (Math.abs(toX - fromX) / 2 - spacer), 0, true);
-         console.log(fprev);
 
       } else {
 
