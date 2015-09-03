@@ -238,30 +238,18 @@ GanttMaster.prototype.createResource = function (id, name) {
 };
 
 
-//update depends strings
-GanttMaster.prototype.updateDependsStrings = function () {
+//update dependencies
+GanttMaster.prototype.updateDependencies = function () {
   //remove all deps
   var _this = this;
   $.each(this.tasks, function(k, task) {
-    task.depends = "";
+    task.dependencies = {};
 
     for (var i = 0; i < _this.links.length; i++) {
       var link = _this.links[i];
-      var dep = link.to.depends;
-      link.to.depends = link.to.depends + (link.to.depends == "" ? "" : ",") + (link.from.id) + (link.lag ? ":" + link.lag : "");
-      // link.to.depends = link.to.depends + (link.to.depends == "" ? "" : ",") + (link.from.getRow() + 1) + (link.lag ? ":" + link.lag : "");
+      link.to.dependencies[link.from.id] = { lag: link.lag || 0 }
     }
   })
-  // for (var i = 0; i < this.tasks.length; i++) {
-  //   this.tasks[i].depends = "";
-  // }
-
-  // for (var i = 0; i < this.links.length; i++) {
-  //   var link = this.links[i];
-  //   var dep = link.to.depends;
-  //   link.to.depends = link.to.depends + (link.to.depends == "" ? "" : ",") + (link.from.getRow() + 1) + (link.lag ? ":" + link.lag : "");
-  // }
-
 };
 
 GanttMaster.prototype.removeLink = function (fromTask,toTask) {
@@ -280,7 +268,7 @@ GanttMaster.prototype.removeLink = function (fromTask,toTask) {
   }
 
   if (found) {
-    this.updateDependsStrings();
+    this.updateDependencies();
     if (this.updateLinks(toTask))
       this.changeTaskDates(toTask, toTask.start, toTask.end); // fake change to force date recomputation from dependencies
   }
@@ -303,7 +291,7 @@ GanttMaster.prototype.removeAllLinks = function (task,openTrans) {
   }
 
   if (found) {
-    this.updateDependsStrings();
+    this.updateDependencies();
   }
   if (openTrans)
     this.endTransaction();
@@ -323,7 +311,7 @@ GanttMaster.prototype.addTask = function (task, row) {
 
   this.tasks[task.id] = task;
   this.taskOrder.push(task.id);
-  this.updateDependsStrings();
+  this.updateDependencies();
 
   var linkLoops = !this.updateLinks(task);
 
@@ -347,51 +335,6 @@ GanttMaster.prototype.addTask = function (task, row) {
     this.gantt.addTask(task);
   }
   return ret;
-
-  // for (var i = 0; i < this.tasks.length; i++) {
-  //   if (task.id == this.tasks[i].id) {
-  //     pos = i;
-  //     break;
-  //   }
-  // }
-
-  // if (pos >= 0) {
-  //   this.tasks.splice(pos, 1);
-  //   row = parseInt(pos);
-  // }
-
-  //add task in collection
-  // if (typeof(row) != "number") {
-  //   this.tasks.push(task);
-  // } else {
-  //   this.tasks.splice(row, 0, task);
-  //
-  //   //recompute depends string
-  //   this.updateDependsStrings();
-  // }
-
-  //add Link collection in memory
-  // var linkLoops = !this.updateLinks(task);
-
-  //set the status according to parent
-  // if (task.getParent())
-  //   task.status = task.getParent().status;
-  // else
-  //   task.status = "STATUS_ACTIVE";
-
-  // var ret = task;
-  // if (linkLoops || !task.setPeriod(task.start, task.end)) {
-  //   //remove task from in-memory collection
-  //   //console.debug("removing task from memory",task);
-  //   this.tasks.splice(task.getRow(), 1);
-  //   ret = undefined;
-  // } else {
-  //   //append task to editor
-  //   this.editor.addTask(task, row);
-  //   //append task to gantt
-  //   this.gantt.addTask(task);
-  // }
-  // return ret;
 };
 
 
@@ -703,34 +646,26 @@ GanttMaster.prototype.updateLinks = function (task) {
     return loop;
   }
 
-  //remove my depends
+  //remove my dependencies
   this.links = this.links.filter(function (link) {
     return link.to != task;
   });
 
   var todoOk = true;
-  if (task.depends) {
+  if (Object.keys(task.dependencies).length > 0) {
 
     //cannot depend from an ancestor
     var parents = task.getParents();
     //cannot depend from descendants
     var descendants = task.getDescendant();
 
-    var deps = task.depends.split(",");
-    var newDepsString = "";
+    var deps = Object.keys(task.dependencies);
 
     var visited = [];
     for (var j = 0; j < deps.length; j++) {
-      var dep = deps[j]; // in the form of row(lag) e.g. 2:3,3:4,5
-      var par = dep.split(":");
-      var lag = 0;
-
-      if (par.length > 1) {
-        lag = parseInt(par[1]);
-      }
-
-      // var sup = this.tasks[parseInt(par[0] - 1)];
-      var sup = this.tasks[parseInt(par[0])];
+      var dep = task.dependencies[deps[j]],
+          lag = task.lead_or_lag === 'lead' ?  -task.lead_lag_amount : task.lead_lag_amount,
+          sup = this.tasks[deps[j]];
 
       if (sup) {
         if (parents && parents.indexOf(sup) >= 0) {
@@ -746,12 +681,12 @@ GanttMaster.prototype.updateLinks = function (task) {
           this.setErrorOnTransaction(GanttMaster.messages.CIRCULAR_REFERENCE + "\n" + task.name + " -> " + sup.name);
         } else {
           this.links.push(new Link(sup, task, lag));
-          newDepsString = newDepsString + (newDepsString.length > 0 ? "," : "") + dep;
+          task.dependencies[dep.id] = { }
         }
       }
     }
 
-    task.depends = newDepsString;
+    // task.depends = newDepsString;
 
   }
 
@@ -877,8 +812,8 @@ GanttMaster.prototype.deleteCurrentTask=function(){
     self.currentTask.deleteTask();
     self.currentTask = undefined;
 
-    //recompute depends string
-    self.updateDependsStrings();
+    //recompute dependencies
+    self.updateDependencies();
 
     //redraw
     self.redraw();
@@ -1164,7 +1099,7 @@ GanttMaster.prototype.computeCriticalPath = function () {
   function initials(tasks) {
     var initials = [];
     for (var i = 0; i < tasks.length; i++) {
-      if (!tasks[i].depends || tasks[i].depends == "")
+      if (Object.keys(tasks[i].dependencies).length === 0)
         initials.push(tasks[i]);
     }
     return initials;

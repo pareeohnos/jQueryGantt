@@ -389,6 +389,8 @@ Ganttalendar.prototype.drawTask = function (task) {
 
   if (this.master.canWrite && task.canWrite) {
 
+    var _master = this.master;
+
     //bind all events on taskBox
     taskBox
       .click(function (e) { // manages selection
@@ -520,19 +522,84 @@ Ganttalendar.prototype.drawTask = function (task) {
         if (targetBox && targetBox.attr("taskid") != taskBox.attr("taskid")) {
           var taskTo;
           var taskFrom;
-          if (self.linkFromEnd) {
-            taskTo = self.master.getTask(targetBox.attr("taskid"));
-            taskFrom = self.master.getTask(taskBox.attr("taskid"));
-          } else {
-            taskFrom = self.master.getTask(targetBox.attr("taskid"));
-            taskTo = self.master.getTask(taskBox.attr("taskid"));
-          }
+          taskTo = self.master.getTask(targetBox.attr('taskid'));
+          taskFrom = self.master.getTask(taskBox.attr('taskid'));
+          // if (self.linkFromEnd) {
+          //   taskTo = self.master.getTask(targetBox.attr("taskid"));
+          //   taskFrom = self.master.getTask(taskBox.attr("taskid"));
+          // } else {
+          //   taskFrom = self.master.getTask(targetBox.attr("taskid"));
+          //   taskTo = self.master.getTask(taskBox.attr("taskid"));
+          // }
 
           if (taskTo && taskFrom) {
-            var gap = 0;
-            var depInp = taskTo.rowElement.find("[name=depends]");
-            depInp.val(depInp.val() + ((depInp.val() + "").length > 0 ? "," : "") + (taskFrom.getRow() + 1) + (gap != 0 ? ":" + gap : ""));
-            depInp.blur();
+
+            var target = $(e.target)[0],
+                screenCTM = target.getScreenCTM(),
+                mousePoint = targetBox[0].createSVGPoint();
+
+            mousePoint.x = e.clientX;
+            mousePoint.y = e.clientY;
+
+            mousePoint = mousePoint.matrixTransform(screenCTM.inverse());
+
+            var taskRect = targetBox.find('rect.taskLayout'),
+                taskRectX = taskRect[0].x.animVal.value,
+                taskRectWidth = taskRect[0].width.animVal.value,
+                taskRectMid = taskRectX + (taskRectWidth / 2),
+                joinType = 'end-to-start';
+
+
+            if (Object.keys(taskTo.dependencies).length === 0) {
+              var lag = 0,
+                superiorDate;
+
+              if (mousePoint.x < taskRectMid) {
+                if (self.linkFromEnd) {
+                  joinType = 'end-to-start';
+                  superiorDate = taskFrom.end;
+                } else {
+                  joinType = 'start-to-start';
+                  superiorDate = taskFrom.start;
+                }
+              } else {
+                if (self.linkFromEnd) {
+                  joinType = 'end-to-end';
+                  superiorDate = taskFrom.end;
+                } else {
+                  joinType = 'start-to-end'
+                  superiorDate = taskFrom.start;
+                }
+              }
+
+              if (joinType === 'end-to-end' || joinType === 'start-to-end') {
+                if (moment(taskTo.start).add(taskTo.duration, 'days').isAfter(moment(superiorDate)) || moment(new Date(taskTo.start)).add(taskTo.duration, 'days').isSame(moment(superiorDate))) {
+                  lag = moment(new Date(taskTo.start)).add(taskTo.duration, 'days').diff(moment(new Date(superiorDate)), 'days');
+                } else {
+                  lag = moment(new Date(taskTo.start)).add(taskTo.duration - 1, 'days').endOf('day').diff(moment(new Date(superiorDate)), 'days');
+                }
+              } else {
+                if (moment(new Date(taskTo.start)).isAfter(moment(superiorDate)) || moment(new Date(taskTo.start)).isSame(moment(superiorDate))) {
+                  lag = moment(new Date(taskTo.start)).diff(moment(new Date(superiorDate)), 'days');
+                } else {
+                  lag = moment(new Date(taskTo.start)).subtract(1, 'day').endOf('day').diff(moment(new Date(superiorDate)), 'days');
+                }
+              }
+
+              taskTo.date_calculation_type = joinType;
+            }
+
+            if (!taskTo.dependencies[taskFrom.id]) {
+              taskTo.dependencies[taskFrom.id] = {}
+            }
+
+            _master.updateLinks(taskTo);
+            _master.redraw();
+
+            // var gap = 0;
+            // var depInp = taskTo.rowElement.find("[name=depends]");
+            // depInp.val(depInp.val() + ((depInp.val() + "").length > 0 ? "," : "") + (taskFrom.getRow() + 1) + (gap != 0 ? ":" + gap : ""));
+            // depInp.blur();
           }
         }
       })
@@ -588,10 +655,10 @@ Ganttalendar.prototype.drawTask = function (task) {
     svg.text(taskSvg, "100%", 18, task.name, {class:"taskLabelSVG", transform:"translate(20,-5)"});
 
     //link tool
-    if (task.level>0){
+    // if (task.level>0){
       svg.circle(taskSvg, "0",  dimensions.height/2,dimensions.height/3, {class:"taskLinkStartSVG linkHandleSVG", transform:"translate("+(-dimensions.height/3-1)+")"});
       svg.circle(taskSvg, "100%",dimensions.height/2,dimensions.height/3, {class:"taskLinkEndSVG linkHandleSVG", transform:"translate("+(dimensions.height/3+1)+")"});
-    }
+    // }
     return taskSvg
   }
 

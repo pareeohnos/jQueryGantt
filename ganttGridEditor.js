@@ -161,7 +161,6 @@ GridEditor.prototype.refreshTaskRow = function (task) {
   row.find("[name=duration]").val(task.duration);
   row.find("[name=start]").val(new Date(task.start).format()).updateOldValue(); // called on dates only because for other field is called on focus event
   row.find("[name=end]").val(new Date(task.end).format()).updateOldValue();
-  row.find("[name=depends]").val(task.depends);
   row.find(".taskAssigs").html(task.getAssigsString());
 
   //profiler.stop();
@@ -241,7 +240,7 @@ GridEditor.prototype.bindRowInputEvents = function (task, taskRow) {
     var el = $(this);
 
     //start is readonly in case of deps
-    if (task.depends && el.attr("name") == "start") {
+    if (Object.keys(task.dependencies).length > 0 && el.attr("name") == "start") {
       el.attr("readonly", "true");
     } else {
       el.removeAttr("readonly");
@@ -319,31 +318,32 @@ GridEditor.prototype.bindRowInputEvents = function (task, taskRow) {
 
         self.master.beginTransaction();
 
-        if (field == "depends") {
-          var oldDeps = task.depends;
-          task.depends = el.val();
-
-          //start is readonly in case of deps
-          if (task.depends) {
-            row.find("[name=start]").attr("readonly", "true");
-          } else {
-            row.find("[name=start]").removeAttr("readonly");
-          }
-
-
-          // update links
-          var linkOK = self.master.updateLinks(task);
-          if (linkOK) {
-            //synchronize status from superiors states
-            var sups = task.getSuperiors();
-            for (var i = 0; i < sups.length; i++) {
-              if (!sups[i].from.synchronizeStatus())
-                break;
-            }
-            self.master.changeTaskDates(task, task.start, task.end); // fake change to force date recomputation from dependencies
-          }
-
-        } else if (field == "duration") {
+        // if (field == "depends") {
+        //   var oldDeps = task.depends;
+        //   task.depends = el.val();
+        //
+        //   //start is readonly in case of deps
+        //   if (task.depends) {
+        //     row.find("[name=start]").attr("readonly", "true");
+        //   } else {
+        //     row.find("[name=start]").removeAttr("readonly");
+        //   }
+        //
+        //
+        //   // update links
+        //   var linkOK = self.master.updateLinks(task);
+        //   if (linkOK) {
+        //     //synchronize status from superiors states
+        //     var sups = task.getSuperiors();
+        //     for (var i = 0; i < sups.length; i++) {
+        //       if (!sups[i].from.synchronizeStatus())
+        //         break;
+        //     }
+        //     self.master.changeTaskDates(task, task.start, task.end); // fake change to force date recomputation from dependencies
+        //   }
+        //
+        // } else
+        if (field == "duration") {
           var dur = task.duration;
           dur = parseInt(el.val()) || 1;
           el.val(dur);
@@ -489,15 +489,13 @@ GridEditor.prototype.openFullEditor = function (task, taskRow) {
   var startDate = taskEditor.find("#start");
   startDate.val(new Date(task.start).format());
   //start is readonly in case of deps
-  if (task.depends) {
+  if (Object.keys(task.dependencies).length > 0) {
     startDate.attr("readonly", "true");
   } else {
     startDate.removeAttr("readonly");
   }
 
   taskEditor.find("#end").val(new Date(task.end).format());
-
-  //taskEditor.find("[name=depends]").val(task.depends);
 
   //make assignments table
   var assigsTable = taskEditor.find("#assigsTable");

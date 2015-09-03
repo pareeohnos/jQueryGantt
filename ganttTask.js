@@ -48,7 +48,7 @@ function Task(id, name, code, level, start, end, duration, collapsed) {
   this.code = code;
   this.level = level;
   this.status = "STATUS_UNDEFINED";
-  this.depends="";
+  this.dependencies = {};
   this.canWrite=true; // by default all tasks are writeable
 
   this.start = start
@@ -292,8 +292,6 @@ Task.prototype.moveTo = function (start, ignoreMilestones) {
         newStart = start,
         lag = 0;
 
-    console.log(moment(new Date(start)));
-
     // Find the relevant date to work from
     for (var i = 0; i < sups.length; i++) {
       var link = sups[i];
@@ -305,7 +303,6 @@ Task.prototype.moveTo = function (start, ignoreMilestones) {
       }
     }
 
-    console.log(moment(new Date(newStart)).add(this.duration - 1, 'days').endOf('day').valueOf(), superiorDate);
     if (calcType === 'end-to-end' || calcType === 'start-to-end') {
       if (moment(new Date(newStart)).add(this.duration, 'days').isAfter(moment(superiorDate)) || moment(new Date(newStart)).add(this.duration, 'days').isSame(moment(superiorDate))) {
         lag = moment(new Date(newStart)).add(this.duration, 'days').diff(moment(new Date(superiorDate)), 'days');
@@ -320,22 +317,10 @@ Task.prototype.moveTo = function (start, ignoreMilestones) {
       }
     }
 
-    console.log(lag);
-
-    // if (lag > 0) {
-    //   lag--;
-    // } else if (lag < 0) {
-    //   lag++;
-    // }
-
-    // console.log(lag);
-
     for (var i = 0; i < sups.length; i++) {
       var link = sups[i];
       link.lag = lag;
     }
-
-    console.log(moment(new Date(superiorDate)).add(lag, 'days'));
 
     this.lead_lag_amount = Math.abs(lag);
     this.lead_or_lag = lag >= 0 ? 'lag' : 'lead';
@@ -409,6 +394,8 @@ Task.prototype.moveTo = function (start, ignoreMilestones) {
 
   }
 
+  this.master.updateDependencies();
+
   return true;
 };
 
@@ -431,7 +418,7 @@ function updateTree(task) {
     if (p.startIsMilestone) {
       task.master.setErrorOnTransaction(GanttMaster.messages["START_IS_MILESTONE"] + "\n" + p.name, task);
       return false;
-    } else if (p.depends) {
+    } else if (Object.keys(p.dependencies).length > 0) {
       task.master.setErrorOnTransaction(GanttMaster.messages["TASK_HAS_CONSTRAINTS"] + "\n" + p.name, task);
       return false;
     }
@@ -903,12 +890,12 @@ Task.prototype.indent = function() {
 
     var parent = this.getParent();
     // set start date to parent' start if no deps
-    if(parent && !this.depends){
+    if(parent && Object.keys(this.dependencies).length === 0){
     	var new_end = computeEndByDuration(parent.start, this.duration);
     	this.master.changeTaskDates(this, parent.start, new_end);
     }
-    //recompute depends string
-    this.master.updateDependsStrings();
+    //recompute dependencies
+    this.master.updateDependencies();
     //enlarge parent using a fake set period
     this.setPeriod(this.start + 1, this.end + 1);
 
@@ -956,8 +943,8 @@ Task.prototype.outdent = function() {
     chds[i].setPeriod(chds[i].start + 1, chds[i].end + 1);
   }
 
-  //recompute depends string
-  this.master.updateDependsStrings();
+  //recompute dependencies string
+  this.master.updateDependencies();
 
   //enlarge parent using a fake set period
   this.setPeriod(this.start + 1, this.end + 1);
@@ -1016,8 +1003,8 @@ Task.prototype.moveUp = function() {
     var domBlockToMove = rows.slice(row, row + descNumber + 1);
     rows.eq(newRow).before(domBlockToMove);
 
-    //recompute depends string
-    this.master.updateDependsStrings();
+    //recompute dependencies string
+    this.master.updateDependencies();
   } else {
     this.master.setErrorOnTransaction(GanttMaster.messages["TASK_MOVE_INCONSISTENT_LEVEL"], this);
     ret = false;
@@ -1086,8 +1073,8 @@ Task.prototype.moveDown = function() {
     var domBlockToMove = rows.slice(row, row + descNumber + 1);
     aft.after(domBlockToMove);
 
-    //recompute depends string
-    this.master.updateDependsStrings();
+    //recompute dependencies string
+    this.master.updateDependencies();
   }
 
   return ret;
