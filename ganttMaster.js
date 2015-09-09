@@ -131,66 +131,67 @@ GanttMaster.prototype.init = function (place) {
         case 46: //del
         case 8: //backspace
           var focused = self.gantt.element.find(".focused.focused");// orrible hack for chrome that seems to keep in memory a cached object
-          if (focused.is(".taskBox")) { // remove task
-            self.deleteCurrentTask();
-          } else if (focused.is(".linkGroup")) {
+          // if (focused.is(".taskBox")) { // remove task
+            // self.deleteCurrentTask();
+          // } else
+          if (focused.is(".linkGroup")) {
             self.removeLink(focused.data("from"), focused.data("to"));
           }
           break;
 
-        case 38: //up
-          if (self.currentTask) {
-            if (self.currentTask.ganttElement.is(".focused")) {
-              self.moveUpCurrentTask();
-              self.gantt.element.oneTime(100, function () {self.currentTask.ganttElement.addClass("focused");});
+        // case 38: //up
+        //   if (self.currentTask) {
+        //     if (self.currentTask.ganttElement.is(".focused")) {
+        //       self.moveUpCurrentTask();
+        //       self.gantt.element.oneTime(100, function () {self.currentTask.ganttElement.addClass("focused");});
+        //
+        //     } else {
+        //       self.currentTask.rowElement.prev().click();
+        //     }
+        //   }
+        //   break;
+        //
+        // case 40: //down
+        //   if (self.currentTask) {
+        //     if (self.currentTask.ganttElement.is(".focused")) {
+        //       self.moveDownCurrentTask();
+        //       self.gantt.element.oneTime(100, function () {self.currentTask.ganttElement.addClass("focused");});
+        //     } else {
+        //       self.currentTask.rowElement.next().click();
+        //     }
+        //   }
+        //   break;
+        //
+        // case 39: //right
+        //   if (self.currentTask) {
+        //     if (self.currentTask.ganttElement.is(".focused")) {
+        //       self.indentCurrentTask();
+        //       self.gantt.element.oneTime(100, function () {self.currentTask.ganttElement.addClass("focused");});
+        //     }
+        //   }
+        //   break;
+        //
+        // case 37: //left
+        //   if (self.currentTask) {
+        //     if (self.currentTask.ganttElement.is(".focused")) {
+        //       self.outdentCurrentTask();
+        //       self.gantt.element.oneTime(100, function () {self.currentTask.ganttElement.addClass("focused");});
+        //     }
+        //   }
+        //   break;
 
-            } else {
-              self.currentTask.rowElement.prev().click();
-            }
-          }
-          break;
 
-        case 40: //down
-          if (self.currentTask) {
-            if (self.currentTask.ganttElement.is(".focused")) {
-              self.moveDownCurrentTask();
-              self.gantt.element.oneTime(100, function () {self.currentTask.ganttElement.addClass("focused");});
-            } else {
-              self.currentTask.rowElement.next().click();
-            }
-          }
-          break;
-
-        case 39: //right
-          if (self.currentTask) {
-            if (self.currentTask.ganttElement.is(".focused")) {
-              self.indentCurrentTask();
-              self.gantt.element.oneTime(100, function () {self.currentTask.ganttElement.addClass("focused");});
-            }
-          }
-          break;
-
-        case 37: //left
-          if (self.currentTask) {
-            if (self.currentTask.ganttElement.is(".focused")) {
-              self.outdentCurrentTask();
-              self.gantt.element.oneTime(100, function () {self.currentTask.ganttElement.addClass("focused");});
-            }
-          }
-          break;
-
-
-        case 89: //Y
-          if (e.ctrlKey) {
-            self.redo();
-          }
-          break;
-
-        case 90: //Z
-          if (e.ctrlKey) {
-            self.undo();
-          }
-          break;
+        // case 89: //Y
+        //   if (e.ctrlKey) {
+        //     self.redo();
+        //   }
+        //   break;
+        //
+        // case 90: //Z
+        //   if (e.ctrlKey) {
+        //     self.undo();
+        //   }
+        //   break;
 
         default :{
           eventManaged=false;
@@ -272,7 +273,9 @@ GanttMaster.prototype.removeLink = function (fromTask,toTask) {
     if (this.updateLinks(toTask))
       this.changeTaskDates(toTask, toTask.start, toTask.end); // fake change to force date recomputation from dependencies
   }
+
   this.endTransaction();
+  this.updateTaskRemotely(toTask);
 };
 
 GanttMaster.prototype.removeAllLinks = function (task,openTrans) {
@@ -490,12 +493,18 @@ GanttMaster.prototype.getResource = function (resId) {
 
 
 GanttMaster.prototype.changeTaskDates = function (task, start, end) {
-  return task.setPeriod(start, end);
+  var set = task.setPeriod(start, end);
+  this.updateTaskRemotely(task);
+
+  return set;
 };
 
 
 GanttMaster.prototype.moveTask = function (task, newStart) {
-  return task.moveTo(newStart, true);
+  var moved = task.moveTo(newStart, true);
+  this.updateTaskRemotely(task);
+
+  return moved;
 };
 
 
@@ -681,13 +690,16 @@ GanttMaster.prototype.updateLinks = function (task) {
           this.setErrorOnTransaction(GanttMaster.messages.CIRCULAR_REFERENCE + "\n" + task.name + " -> " + sup.name);
         } else {
           this.links.push(new Link(sup, task, lag));
-          task.dependencies[dep.id] = { }
+          task.dependencies[sup.id] = { }
         }
       }
     }
 
     // task.depends = newDepsString;
 
+  } else {
+    task.date_is_calculated = false;
+    task.date_calculation_type = 'project';
   }
 
   //prof.stop();
@@ -834,6 +846,61 @@ GanttMaster.prototype.deleteCurrentTask=function(){
 };
 
 
+GanttMaster.prototype.updateTaskRemotely = function(task) {
+  // Task groups have a negative ID so don't do anything to them
+  if (task.id > 0) {
+    var data = {
+      task: {
+        date_calculation_type: (task.date_is_calculated ? task.date_calculation_type.replace(/-/g, '_') : 'project'),
+        date_is_calculated: task.date_is_calculated,
+        duration: task.duration,
+        lead_or_lag: task.lead_or_lag,
+        lead_lag_amount: task.lead_lag_amount,
+        dependency_ids: Object.keys(task.dependencies)
+      }
+    }
+
+    if (!task.date_is_calculated) {
+      data.task.starts_at = moment.utc(new Date(task.start)).add(moment().utcOffset(), 'minutes').toString();
+      data.task.deadline = moment.utc(new Date(task.end)).add(moment().utcOffset(), 'minutes').toString();
+    }
+
+    var progress = 0,
+        loading = true,
+        element = task.ganttElement[0];
+
+    function updateProgressBar() {
+      if (loading) {
+        $('#loading-stripes').attr('patternTransform', 'translate(' + progress + ', 0)');
+        progress += 10;
+        setTimeout(updateProgressBar, 100);
+      }
+    }
+
+    $.ajax({
+      url: '/tasks/' + task.id,
+      type: 'PUT',
+      beforeSend: function(xhr) {
+        xhr.setRequestHeader('X-CSRF-Token', $('meta[name="csrf-token"]').attr('content'));
+        setTimeout(updateProgressBar, 100);
+        $(element).find('.taskLayout').attr('fill', 'url("#loading-stripes")');
+      },
+      success: function() {
+        Dispatcher.fn.flash.show(Dispatcher.constants.FLASH_SUCCESS, 'The task was successfully updated');
+      },
+      error: function() {
+        Dispatcher.fn.flash.show(Dispatcher.constants.FLASH_ERROR, 'Unable to update the task. Please try again');
+      },
+      complete: function() {
+        loading = false;
+        $(element).find('.taskLayout').removeAttr('fill');
+      },
+      data: JSON.stringify(data),
+      dataType: 'json',
+      contentType: 'application/json'
+    });
+  }
+};
 
 //<%----------------------------- TRANSACTION MANAGEMENT ---------------------------------%>
 GanttMaster.prototype.beginTransaction = function () {

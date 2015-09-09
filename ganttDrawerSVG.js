@@ -187,7 +187,13 @@ Ganttalendar.prototype.create = function (zoom, originalStartmillis, originalEnd
         date.setFullYear(date.getFullYear() + 1);
       }, function (date) {
         var sem = (Math.floor(date.getMonth() / 6) + 1);
-        tr2.append(createHeadCell(GanttMaster.messages["GANTT_SEMESTER_SHORT"] + sem, 1, null, 100));
+        var label;
+        if (sem === 1) {
+          label = 'Jan - Jun';
+        } else {
+          label = 'Jul - Dec';
+        }
+        tr2.append(createHeadCell(label, 1, null, 100));
         trBody.append(createBodyCell(1, sem == 2));
         date.setMonth(date.getMonth() + 6);
       });
@@ -203,7 +209,18 @@ Ganttalendar.prototype.create = function (zoom, originalStartmillis, originalEnd
         date.setMonth(date.getMonth() + 6);
       }, function (date) {
         var quarter = ( Math.floor(date.getMonth() / 3) + 1);
-        tr2.append(createHeadCell(GanttMaster.messages["GANTT_QUARTER_SHORT"] + quarter, 1, null, 100));
+        var label;
+        if (quarter === 1) {
+          label = 'Jan - Mar';
+        } else if (quarter === 2) {
+          label = 'Apr - Jun';
+        } else if (quarter === 3) {
+          label = 'Jul - Sep';
+        } else {
+          label = 'Oct - Dec';
+        }
+
+        tr2.append(createHeadCell(label, 1, null, 100));
         trBody.append(createBodyCell(1, quarter % 2 == 0));
         date.setMonth(date.getMonth() + 3);
       });
@@ -311,6 +328,11 @@ Ganttalendar.prototype.create = function (zoom, originalStartmillis, originalEnd
         var marker = svg.marker(defs, 'arrow-marker', 300, 256, 5, 5, { markerUnits: "strokeWidth", viewBox: '0 0 512 512' });
         svg.path(marker, 'M298.3,256L298.3,256L298.3,256L131.1,81.9c-4.2-4.3-4.1-11.4,0.2-15.8l29.9-30.6c4.3-4.4,11.3-4.5,15.5-0.2l204.2,212.7c2.2,2.2,3.2,5.2,3,8.1c0.1,3-0.9,5.9-3,8.1L176.7,476.8c-4.2,4.3-11.2,4.2-15.5-0.2L131.3,446c-4.3-4.4-4.4-11.5-0.2-15.8L298.3,256z', { fill: '#f2711c' });
 
+        var loading = svg.pattern(defs, 'loading-stripes', 0, 0, 70, 70, 0, 0, 70, 70, { patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' });
+          svg.rect(loading, 0, 0, 70, 70, 0, 0, { transform: 'translate(0,0)', fill: '#bbd817' });
+          var g = svg.group(loading, { transform: 'rotate(45)'});
+          svg.rect(g, 0, 0, 99, 25, 0, 0, { fill: '#a9ce00' });
+          svg.rect(g, 0, -50, 99, 25, 0, 0, { fill: '#a9ce00' });
 
 
         //create backgound
@@ -587,6 +609,7 @@ Ganttalendar.prototype.drawTask = function (task) {
               }
 
               taskTo.date_calculation_type = joinType;
+              taskTo.date_is_calculated = true;
             }
 
             if (!taskTo.dependencies[taskFrom.id]) {
@@ -595,6 +618,7 @@ Ganttalendar.prototype.drawTask = function (task) {
 
             _master.updateLinks(taskTo);
             _master.redraw();
+            _master.updateTaskRemotely(taskTo);
 
             // var gap = 0;
             // var depInp = taskTo.rowElement.find("[name=depends]");
@@ -621,9 +645,9 @@ Ganttalendar.prototype.drawTask = function (task) {
     if (!task.hasChild) {
       layout = svg.rect(taskSvg, 0, 0, "100%", "100%", {class:"taskLayout", rx:"10", ry:"10"});
     } else {
-      svg.rect(taskSvg, 0, 0, "100%", 10, { fill: "#2185d0", rx: '5', ry: '5' });
-      svg.polygon(taskSvg, [[0, 5], [20, 5], [0, dimensions.height]], { fill: "#2185d0" });
-      svg.polygon(taskSvg, [[dimensions.width - 20, 5], [dimensions.width, 5], [dimensions.width, dimensions.height]], { fill: "#2185d0" });
+      svg.rect(taskSvg, 0, 0, "100%", 10, { fill: "#5bbcdd", rx: '5', ry: '5' });
+      svg.polygon(taskSvg, [[0, 5], [20, 5], [0, dimensions.height]], { fill: "#5bbcdd" });
+      svg.polygon(taskSvg, [[dimensions.width - 20, 5], [dimensions.width, 5], [dimensions.width, dimensions.height]], { fill: "#5bbcdd" });
     }
 
     //external dep
@@ -656,9 +680,10 @@ Ganttalendar.prototype.drawTask = function (task) {
 
     //link tool
     // if (task.level>0){
+    if (task.getChildren().length === 0) {
       svg.circle(taskSvg, "0",  dimensions.height/2,dimensions.height/3, {class:"taskLinkStartSVG linkHandleSVG", transform:"translate("+(-dimensions.height/3-1)+")"});
       svg.circle(taskSvg, "100%",dimensions.height/2,dimensions.height/3, {class:"taskLinkEndSVG linkHandleSVG", transform:"translate("+(dimensions.height/3+1)+")"});
-    // }
+    }
     return taskSvg
   }
 
